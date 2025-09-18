@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">BlockBadApps</string>
+    <string name="first_fragment_label">First Fragment</string>
+    <string name="accessibility_service_description">This service helps you stay focused by blocking websites you choose. It needs permission to see the content on your screen to identify the URL in your browser and block the sites on your list.</string>
+</resources>
