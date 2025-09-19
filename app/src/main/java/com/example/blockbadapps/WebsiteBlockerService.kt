@@ -46,10 +46,6 @@ class WebsiteBlockerService : AccessibilityService() {
         rootNode.recycle()
     }
 
-    /**
-     * This stable version uses a specific list of View IDs to find the URL bar
-     * in known browsers. This is very fast and reliable.
-     */
     private fun findUrlNode(rootNode: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val browserUrlBarIds = listOf(
             "com.android.chrome:id/url_bar",
