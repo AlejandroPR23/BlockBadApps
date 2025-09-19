@@ -35,7 +35,6 @@ class WebsiteBlockerService : AccessibilityService() {
 
                     Handler(Looper.getMainLooper()).postDelayed({
                         showBlockToast()
-                        // UPDATED ACTION: Call the new function to open the video
                         openMotivationalVideo()
                     }, 200)
 
@@ -47,27 +46,19 @@ class WebsiteBlockerService : AccessibilityService() {
         rootNode.recycle()
     }
 
-    // NEW FUNCTION: Opens the specific YouTube video
-    private fun openMotivationalVideo() {
-        val videoUrl = "https://www.youtube.com/watch?v=zBxBT3k7Jb0"
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        try {
-            startActivity(intent)
-        } catch (e: Exception) {
-            // Fallback in case YouTube is not installed or something goes wrong
-            Toast.makeText(applicationContext, "Could not open video.", Toast.LENGTH_SHORT).show()
-            goToHomeScreen()
-        }
-    }
-
+    /**
+     * This stable version uses a specific list of View IDs to find the URL bar
+     * in known browsers. This is very fast and reliable.
+     */
     private fun findUrlNode(rootNode: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val browserUrlBarIds = listOf(
             "com.android.chrome:id/url_bar",
-            "org.mozilla.firefox:id/url_bar_title",
+            "org.mozilla.firefox:id/mozac_browser_toolbar_url_view",
             "com.duckduckgo.mobile.android:id/omnibarTextInput",
             "com.brave.browser:id/url_bar",
-            "com.microsoft.emmx:id/url_bar"
+            "com.microsoft.emmx:id/url_bar",
+            "com.opera.browser:id/url_field",
+            "com.opera.mini.native:id/url_field"
         )
 
         for (id in browserUrlBarIds) {
@@ -79,7 +70,17 @@ class WebsiteBlockerService : AccessibilityService() {
         return null
     }
 
-    // This is now a fallback function
+    private fun openMotivationalVideo() {
+        val videoUrl = "https://www.youtube.com/watch?v=zBxBT3k7Jb0"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            goToHomeScreen()
+        }
+    }
+
     private fun goToHomeScreen() {
         val intent = Intent(Intent.ACTION_MAIN)
         intent.addCategory(Intent.CATEGORY_HOME)
