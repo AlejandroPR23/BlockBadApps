@@ -13,6 +13,7 @@ import android.widget.Toast
 class WebsiteBlockerService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        val packageName = event?.packageName ?: return
         val rootNode = rootInActiveWindow ?: return
 
         val sharedPreferences = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
@@ -30,20 +31,52 @@ class WebsiteBlockerService : AccessibilityService() {
 
         if (url != null) {
             for (site in blockedSites) {
-                if (url.contains(site)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                val cleanedSite = site.trimEnd('/')
 
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        showBlockToast()
-                        openMotivationalVideo()
-                    }, 200)
+                if (url.contains(cleanedSite)) {
+                    val index = url.indexOf(cleanedSite)
+                    val endIndex = index + cleanedSite.length
+                    val isStartValid = (index == 0) || (url[index - 1] == '.' || url[index - 1] == '/')
+                    val isEndValid = (endIndex == url.length) || (url[endIndex] == '.' || url[endIndex] == '/')
 
-                    break
+                    if (isStartValid && isEndValid) {
+                        performGlobalAction(GLOBAL_ACTION_BACK)
+
+                        handleBlockActions(packageName)
+
+                        break
+                    }
                 }
             }
         }
 
         rootNode.recycle()
+    }
+
+    private fun openMotivationalPage(packageName: CharSequence?) {
+        val motivationalPageUrl = "https://ieelcorozal.com/"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(motivationalPageUrl))
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+
+        if (packageName != null) {
+            intent.setPackage(packageName.toString())
+        }
+
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            if (packageName != null) {
+                val genericIntent = Intent(Intent.ACTION_VIEW, Uri.parse(motivationalPageUrl))
+                genericIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                try {
+                    startActivity(genericIntent)
+                } catch (e2: Exception) {
+                    goToHomeScreen()
+                }
+            } else {
+                goToHomeScreen()
+            }
+        }
     }
 
     private fun findUrlNode(rootNode: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -77,6 +110,21 @@ class WebsiteBlockerService : AccessibilityService() {
         }
     }
 
+
+    private fun handleBlockActions(packageName: CharSequence?) {
+        val mainHandler = Handler(Looper.getMainLooper())
+
+        mainHandler.post { showBlockToast() }
+
+        mainHandler.postDelayed({
+            openMotivationalPage(packageName)
+        }, 500)
+
+        mainHandler.postDelayed({
+            openMotivationalVideo()
+        }, 60000)
+    }
+
     private fun goToHomeScreen() {
         val intent = Intent(Intent.ACTION_MAIN)
         intent.addCategory(Intent.CATEGORY_HOME)
@@ -85,10 +133,7 @@ class WebsiteBlockerService : AccessibilityService() {
     }
 
     private fun showBlockToast() {
-        val handler = Handler(Looper.getMainLooper())
-        handler.post {
-            Toast.makeText(applicationContext, "Stay Focused!", Toast.LENGTH_SHORT).show()
-        }
+        Toast.makeText(applicationContext, "Stay Focused!", Toast.LENGTH_SHORT).show()
     }
 
     override fun onInterrupt() {}
