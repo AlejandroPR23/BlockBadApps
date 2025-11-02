@@ -33,15 +33,37 @@ class MainActivity : AppCompatActivity() {
     private lateinit var siteEditText: EditText
     private lateinit var addButton: Button
     private lateinit var importButton: Button
+    private lateinit var setupPatternButton: Button
     private lateinit var keywordsRecyclerView: RecyclerView
 
     // Data
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var keywordAdapter: KeywordAdapter
+    private lateinit var patternManager: PatternManager
+
+    // Flag para evitar verificación múltiple
+    private var hasVerifiedPattern = false
 
     companion object {
         const val PREFS_NAME = "BlockBadAppsPrefs"
         const val BLOCKED_SITES_KEY = "BlockedSites"
+    }
+
+    // Launchers
+    private val setupPatternLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            Toast.makeText(this, "Pattern configured successfully", Toast.LENGTH_SHORT).show()
+            hasVerifiedPattern = true // Marcar como verificado después de configurar
+        }
+    }
+
+    private val verifyPatternLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            hasVerifiedPattern = true
+        } else {
+            // Si no verificó el patrón correctamente, cerrar la app
+            finishAffinity()
+        }
     }
 
     // --- Activity Lifecycle ---
@@ -52,6 +74,7 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize everything
         sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        patternManager = PatternManager(this)
         bindViews()
         setupRecyclerView()
         setupClickListeners()
@@ -59,8 +82,29 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        updateServiceStatus()
-        loadAndDisplayKeywords()
+
+        // Solo verificar el patrón si no se ha verificado en esta sesión
+        if (!hasVerifiedPattern) {
+            if (!patternManager.isPatternSet()) {
+                // Primera vez: configurar patrón
+                val intent = Intent(this, SetupPatternActivity::class.java)
+                setupPatternLauncher.launch(intent)
+            } else {
+                // Patrón ya existe: verificarlo
+                val intent = Intent(this, VerifyPatternActivity::class.java)
+                verifyPatternLauncher.launch(intent)
+            }
+        } else {
+            // Ya verificado, actualizar UI normalmente
+            updateServiceStatus()
+            loadAndDisplayKeywords()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Resetear la bandera cuando la app va al fondo
+        hasVerifiedPattern = false
     }
 
     // --- Setup ---
@@ -71,12 +115,12 @@ class MainActivity : AppCompatActivity() {
         siteEditText = findViewById(R.id.siteEditText)
         addButton = findViewById(R.id.addButton)
         importButton = findViewById(R.id.importButton)
+        setupPatternButton = findViewById(R.id.setupPatternButton)
         keywordsRecyclerView = findViewById(R.id.keywordsRecyclerView)
     }
 
     private fun setupRecyclerView() {
         keywordAdapter = KeywordAdapter { keyword ->
-            // This is the delete action that will be passed to the adapter
             removeKeyword(keyword)
         }
         keywordsRecyclerView.layoutManager = LinearLayoutManager(this)
@@ -93,13 +137,16 @@ class MainActivity : AppCompatActivity() {
         importButton.setOnClickListener {
             filePickerLauncher.launch(arrayOf("text/plain"))
         }
+        setupPatternButton.setOnClickListener {
+            val intent = Intent(this, SetupPatternActivity::class.java)
+            setupPatternLauncher.launch(intent)
+        }
     }
 
     // --- Keyword Management ---
 
     private fun loadAndDisplayKeywords() {
         val keywordSet = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, emptySet()) ?: emptySet()
-        // submitList is part of ListAdapter and handles the diffing automatically
         keywordAdapter.submitList(keywordSet.sorted())
     }
 
@@ -128,7 +175,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveKeywords(keywords: Set<String>) {
         sharedPreferences.edit().putStringSet(BLOCKED_SITES_KEY, keywords).apply()
-        loadAndDisplayKeywords() // Reload and refresh the list
+        loadAndDisplayKeywords()
     }
 
     // --- File Import ---
@@ -182,7 +229,7 @@ class MainActivity : AppCompatActivity() {
         return enabledServices.any { it.id.contains(packageName) }
     }
 
-    // --- RecyclerView Adapter (Upgraded to ListAdapter with DiffUtil) ---
+    // --- RecyclerView Adapter ---
 
     class KeywordAdapter(private val onDeleteClicked: (String) -> Unit) :
         ListAdapter<String, KeywordAdapter.KeywordViewHolder>(KeywordDiffCallback()) {
@@ -209,7 +256,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // This class calculates the difference between two lists for efficient updates
         class KeywordDiffCallback : DiffUtil.ItemCallback<String>() {
             override fun areItemsTheSame(oldItem: String, newItem: String): Boolean {
                 return oldItem == newItem
@@ -221,4 +267,3 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
-

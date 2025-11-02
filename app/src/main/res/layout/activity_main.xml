@@ -7,7 +7,7 @@
     android:padding="16dp"
     tools:context=".MainActivity">
 
-    <!-- All the top elements remain the same -->
+    <!-- Service Status Section -->
     <TextView
         android:id="@+id/statusLabel"
         android:layout_width="wrap_content"
@@ -37,6 +37,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Add Keyword Section -->
     <EditText
         android:id="@+id/siteEditText"
         android:layout_width="0dp"
@@ -66,9 +67,21 @@
         style="?attr/materialButtonOutlinedStyle"
         app:layout_constraintTop_toBottomOf="@id/addButton"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        />
+        app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Pattern Lock Button - ANTES del label -->
+    <Button
+        android:id="@+id/setupPatternButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Setup Lock Pattern"
+        style="?attr/materialButtonOutlinedStyle"
+        app:layout_constraintTop_toBottomOf="@id/importButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Blocked Keywords Section -->
     <TextView
         android:id="@+id/blockedSitesLabel"
         android:layout_width="wrap_content"
@@ -76,16 +89,16 @@
         android:layout_marginTop="16dp"
         android:text="Blocked Keywords:"
         android:textStyle="bold"
-        app:layout_constraintTop_toBottomOf="@id/importButton"
+        app:layout_constraintTop_toBottomOf="@id/setupPatternButton"
         app:layout_constraintStart_toStartOf="parent"/>
 
-    <!-- The ScrollView and TextView have been replaced by a RecyclerView -->
+    <!-- RecyclerView - ahora con constraint al bottom -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/keywordsRecyclerView"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="4dp"
-        android:background="#eee"
+        android:layout_marginTop="8dp"
+        android:background="#EEEEEE"
         app:layout_constraintTop_toBottomOf="@id/blockedSitesLabel"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -93,4 +106,3 @@
         tools:listitem="@layout/list_item_keyword" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-

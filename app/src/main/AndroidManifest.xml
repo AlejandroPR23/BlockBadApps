@@ -21,6 +21,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".SetupPatternActivity"
+            android:exported="false" />
+        <activity
+            android:name=".VerifyPatternActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true" />
 
         <!-- We declare the Accessibility Service here -->
         <service
