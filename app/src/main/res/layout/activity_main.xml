@@ -7,12 +7,12 @@
     android:padding="16dp"
     tools:context=".MainActivity">
 
-    <!-- Service Status Section -->
+    <!-- ── Accessibility Service status (unchanged) ──────────────────── -->
     <TextView
         android:id="@+id/statusLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Service Status:"
+        android:text="Accesibility:"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -22,29 +22,63 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:text="Checking..."
+        android:text="Thinking..."
         android:textSize="18sp"
         app:layout_constraintStart_toEndOf="@id/statusLabel"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="@id/statusLabel"
+        app:layout_constraintBottom_toBottomOf="@id/statusLabel" />
 
     <Button
         android:id="@+id/enableServiceButton"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Enable Accessibility Service"
-        app:layout_constraintTop_toBottomOf="@id/statusTextView"
+        android:layout_marginTop="4dp"
+        android:text="Start accesibility service"
+        style="?attr/materialButtonOutlinedStyle"
+        app:layout_constraintTop_toBottomOf="@id/statusLabel"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Add Keyword Section -->
+    <!-- ── VPN status (NEW) ───────────────────────────────────────────── -->
+    <TextView
+        android:id="@+id/vpnLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="VPN Blocker:"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/enableServiceButton" />
+
+    <TextView
+        android:id="@+id/vpnStatusTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="Inactive"
+        android:textSize="18sp"
+        app:layout_constraintStart_toEndOf="@id/vpnLabel"
+        app:layout_constraintTop_toTopOf="@id/vpnLabel"
+        app:layout_constraintBottom_toBottomOf="@id/vpnLabel" />
+
+    <Button
+        android:id="@+id/vpnToggleButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Activate VPN"
+        app:layout_constraintTop_toBottomOf="@id/vpnLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- ── Keyword input (unchanged, now anchored to vpnToggleButton) ── -->
     <EditText
         android:id="@+id/siteEditText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:hint="Enter keyword to block (e.g., reddit)"
-        app:layout_constraintTop_toBottomOf="@id/enableServiceButton"
+        app:layout_constraintTop_toBottomOf="@id/vpnToggleButton"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -69,7 +103,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Pattern Lock Button - ANTES del label -->
     <Button
         android:id="@+id/setupPatternButton"
         android:layout_width="0dp"
@@ -79,9 +112,9 @@
         style="?attr/materialButtonOutlinedStyle"
         app:layout_constraintTop_toBottomOf="@id/importButton"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Blocked Keywords Section -->
+    <!-- ── Blocklist ──────────────────────────────────────────────────── -->
     <TextView
         android:id="@+id/blockedSitesLabel"
         android:layout_width="wrap_content"
@@ -90,9 +123,8 @@
         android:text="Blocked Keywords:"
         android:textStyle="bold"
         app:layout_constraintTop_toBottomOf="@id/setupPatternButton"
-        app:layout_constraintStart_toStartOf="parent"/>
+        app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- RecyclerView - ahora con constraint al bottom -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/keywordsRecyclerView"
         android:layout_width="0dp"

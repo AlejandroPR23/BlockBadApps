@@ -1,10 +1,13 @@
 package com.example.blockbadapps
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.LayoutInflater
@@ -24,57 +27,77 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import android.app.admin.DevicePolicyManager
+import androidx.work.WorkManager
 
 class MainActivity : AppCompatActivity() {
 
-    // UI Elements
+    // ── UI Elements ──────────────────────────────────────────────────────────
     private lateinit var statusTextView: TextView
     private lateinit var enableServiceButton: Button
+    private lateinit var vpnStatusTextView: TextView        // NEW
+    private lateinit var vpnToggleButton: Button            // NEW
     private lateinit var siteEditText: EditText
     private lateinit var addButton: Button
     private lateinit var importButton: Button
     private lateinit var setupPatternButton: Button
     private lateinit var keywordsRecyclerView: RecyclerView
 
-    // Data
+    // ── Data ─────────────────────────────────────────────────────────────────
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var keywordAdapter: KeywordAdapter
     private lateinit var patternManager: PatternManager
+    private lateinit var deviceAdminManager: DeviceAdminManager
 
-    // Flag para evitar verificación múltiple
     private var hasVerifiedPattern = false
+    private var isLaunchingSystemDialog = false
+
 
     companion object {
-        const val PREFS_NAME = "BlockBadAppsPrefs"
+        const val PREFS_NAME       = "BlockBadAppsPrefs"
         const val BLOCKED_SITES_KEY = "BlockedSites"
     }
 
-    // Launchers
-    private val setupPatternLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    // ── Launchers ────────────────────────────────────────────────────────────
+    private val setupPatternLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
         if (result.resultCode == RESULT_OK) {
-            Toast.makeText(this, "Pattern configured successfully", Toast.LENGTH_SHORT).show()
-            hasVerifiedPattern = true // Marcar como verificado después de configurar
+            Toast.makeText(this, "Patron configurado", Toast.LENGTH_SHORT).show()
+            hasVerifiedPattern = true
         }
     }
 
-    private val verifyPatternLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    private val verifyPatternLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
         if (result.resultCode == RESULT_OK) {
             hasVerifiedPattern = true
         } else {
-            // Si no verificó el patrón correctamente, cerrar la app
             finishAffinity()
         }
     }
 
-    // --- Activity Lifecycle ---
+    // NEW: Handles the system "Allow VPN?" dialog
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        isLaunchingSystemDialog = false              // ← NUEVA LÍNEA
+        if (result.resultCode == RESULT_OK) {
+            startVpnService()
+        } else {
+            Toast.makeText(this, "Permiso VPN denegado", Toast.LENGTH_SHORT).show()
+        }
+    }
 
+    // ── Lifecycle ────────────────────────────────────────────────────────────
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Initialize everything
         sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        patternManager = PatternManager(this)
+        patternManager    = PatternManager(this)
+        deviceAdminManager = DeviceAdminManager(this)
         bindViews()
         setupRecyclerView()
         setupClickListeners()
@@ -83,93 +106,146 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
-        // Solo verificar el patrón si no se ha verificado en esta sesión
         if (!hasVerifiedPattern) {
             if (!patternManager.isPatternSet()) {
-                // Primera vez: configurar patrón
-                val intent = Intent(this, SetupPatternActivity::class.java)
-                setupPatternLauncher.launch(intent)
+                setupPatternLauncher.launch(Intent(this, SetupPatternActivity::class.java))
             } else {
-                // Patrón ya existe: verificarlo
-                val intent = Intent(this, VerifyPatternActivity::class.java)
-                verifyPatternLauncher.launch(intent)
+                verifyPatternLauncher.launch(Intent(this, VerifyPatternActivity::class.java))
             }
         } else {
-            // Ya verificado, actualizar UI normalmente
             updateServiceStatus()
+            updateVpnStatus()          // NEW
+            updateAdminStatus()
             loadAndDisplayKeywords()
         }
     }
 
     override fun onStop() {
         super.onStop()
-        // Resetear la bandera cuando la app va al fondo
-        hasVerifiedPattern = false
+        if (!isLaunchingSystemDialog) {              // ← CONDICIÓN NUEVA
+            hasVerifiedPattern = false
+        }
     }
 
-    // --- Setup ---
-
+    // ── Setup ────────────────────────────────────────────────────────────────
     private fun bindViews() {
-        statusTextView = findViewById(R.id.statusTextView)
-        enableServiceButton = findViewById(R.id.enableServiceButton)
-        siteEditText = findViewById(R.id.siteEditText)
-        addButton = findViewById(R.id.addButton)
-        importButton = findViewById(R.id.importButton)
-        setupPatternButton = findViewById(R.id.setupPatternButton)
-        keywordsRecyclerView = findViewById(R.id.keywordsRecyclerView)
+        statusTextView        = findViewById(R.id.statusTextView)
+        enableServiceButton   = findViewById(R.id.enableServiceButton)
+        vpnStatusTextView     = findViewById(R.id.vpnStatusTextView)    // NEW
+        vpnToggleButton       = findViewById(R.id.vpnToggleButton)       // NEW
+        siteEditText          = findViewById(R.id.siteEditText)
+        addButton             = findViewById(R.id.addButton)
+        importButton          = findViewById(R.id.importButton)
+        setupPatternButton    = findViewById(R.id.setupPatternButton)
+        keywordsRecyclerView  = findViewById(R.id.keywordsRecyclerView)
     }
 
     private fun setupRecyclerView() {
-        keywordAdapter = KeywordAdapter { keyword ->
-            removeKeyword(keyword)
-        }
+        keywordAdapter = KeywordAdapter { removeKeyword(it) }
         keywordsRecyclerView.layoutManager = LinearLayoutManager(this)
-        keywordsRecyclerView.adapter = keywordAdapter
+        keywordsRecyclerView.adapter       = keywordAdapter
     }
 
     private fun setupClickListeners() {
         enableServiceButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        addButton.setOnClickListener {
-            addKeyword(siteEditText.text.toString())
-        }
-        importButton.setOnClickListener {
-            filePickerLauncher.launch(arrayOf("text/plain"))
-        }
+        vpnToggleButton.setOnClickListener { toggleVpn() }
+        addButton.setOnClickListener { addKeyword(siteEditText.text.toString()) }
+        importButton.setOnClickListener { filePickerLauncher.launch(arrayOf("text/plain")) }
         setupPatternButton.setOnClickListener {
-            val intent = Intent(this, SetupPatternActivity::class.java)
-            setupPatternLauncher.launch(intent)
+            if (deviceAdminManager.isAdminActive()) {               // FASE 2
+                // Admin ya activo → solo permite cambiar el patrón
+                setupPatternLauncher.launch(Intent(this, SetupPatternActivity::class.java))
+            } else {
+                // Admin no activo → activarlo primero
+                activateDeviceAdmin()                               // FASE 2
+            }
         }
     }
 
-    // --- Keyword Management ---
+    // ── VPN controls (NEW) ───────────────────────────────────────────────────
+    private fun toggleVpn() {
+        if (BlockingVpnService.isRunning) {
+            stopVpnService()
+        } else {
+            val permIntent = VpnService.prepare(this)
+            if (permIntent != null) {
+                isLaunchingSystemDialog = true
+                vpnPermissionLauncher.launch(permIntent)
+            } else {
+                startVpnService()
+            }
+        }
+    }
 
+    private fun startVpnService() {
+        val intent = Intent(this, BlockingVpnService::class.java).apply {
+            action = BlockingVpnService.ACTION_START
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        // FASE 2: Persist the intent so the Watchdog knows to keep VPN alive
+        getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(VpnWatchdogWorker.PREF_VPN_ENABLED, true).apply()
+        VpnWatchdogWorker.schedule(this)                            // FASE 2
+
+        vpnToggleButton.postDelayed({ updateVpnStatus() }, 600)
+    }
+
+    private fun stopVpnService() {
+        startService(Intent(this, BlockingVpnService::class.java).apply {
+            action = BlockingVpnService.ACTION_STOP
+        })
+        // FASE 2: Tell the Watchdog to stop reviving the VPN
+        getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(VpnWatchdogWorker.PREF_VPN_ENABLED, false).apply()
+        VpnWatchdogWorker.cancel(this)                              // FASE 2
+
+        vpnToggleButton.postDelayed({ updateVpnStatus() }, 600)
+    }
+
+    private fun updateVpnStatus() {
+        if (BlockingVpnService.isRunning) {
+            vpnStatusTextView.text = "Activo"
+            vpnStatusTextView.setTextColor(getColor(android.R.color.holo_green_dark))
+            vpnToggleButton.text = "Desactivar VPN"
+        } else {
+            vpnStatusTextView.text = "Inactivo"
+            vpnStatusTextView.setTextColor(getColor(android.R.color.holo_red_dark))
+            vpnToggleButton.text = "Activar VPN"
+        }
+    }
+
+    // ── Keyword management (unchanged) ───────────────────────────────────────
     private fun loadAndDisplayKeywords() {
         val keywordSet = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, emptySet()) ?: emptySet()
         keywordAdapter.submitList(keywordSet.sorted())
     }
 
     private fun addKeyword(keyword: String) {
-        val cleanKeyword = keyword.trim().lowercase()
-        if (cleanKeyword.isEmpty()) return
-
-        val currentKeywords = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-
-        if (currentKeywords.add(cleanKeyword)) {
-            saveKeywords(currentKeywords)
+        val clean = keyword.trim().lowercase()
+        if (clean.isEmpty()) return
+        val current = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, mutableSetOf())
+            ?.toMutableSet() ?: mutableSetOf()
+        if (current.add(clean)) {
+            saveKeywords(current)
             siteEditText.text.clear()
-            Toast.makeText(this, "'$cleanKeyword' added to blocklist", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "'$clean' agregado", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "'$cleanKeyword' is already on the blocklist", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "'$clean' ya esta en la lista", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun removeKeyword(keyword: String) {
-        val currentKeywords = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        if (currentKeywords.remove(keyword)) {
-            saveKeywords(currentKeywords)
-            Toast.makeText(this, "'$keyword' removed", Toast.LENGTH_SHORT).show()
+        val current = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, mutableSetOf())
+            ?.toMutableSet() ?: mutableSetOf()
+        if (current.remove(keyword)) {
+            saveKeywords(current)
+            Toast.makeText(this, "'$keyword' eliminado", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -178,92 +254,108 @@ class MainActivity : AppCompatActivity() {
         loadAndDisplayKeywords()
     }
 
-    // --- File Import ---
-
-    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let { readKeywordsFromUri(it) }
-    }
+    // ── File import (unchanged) ──────────────────────────────────────────────
+    private val filePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? -> uri?.let { readKeywordsFromUri(it) } }
 
     private fun readKeywordsFromUri(uri: Uri) {
-        val newKeywordsFromFile = mutableSetOf<String>()
+        val newKeywords = mutableSetOf<String>()
         try {
-            contentResolver.openInputStream(uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).forEachLine { line ->
-                    val keyword = line.trim().lowercase()
-                    if (keyword.isNotEmpty()) newKeywordsFromFile.add(keyword)
+            contentResolver.openInputStream(uri)?.use { stream ->
+                BufferedReader(InputStreamReader(stream)).forEachLine { line ->
+                    val kw = line.trim().lowercase()
+                    if (kw.isNotEmpty()) newKeywords.add(kw)
                 }
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Error reading file", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Error leyendo archivo", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val currentKeywords = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        val originalSize = currentKeywords.size
-        currentKeywords.addAll(newKeywordsFromFile)
+        val current  = sharedPreferences.getStringSet(BLOCKED_SITES_KEY, mutableSetOf())
+            ?.toMutableSet() ?: mutableSetOf()
+        val before   = current.size
+        current.addAll(newKeywords)
 
-        if (currentKeywords.size > originalSize) {
-            saveKeywords(currentKeywords)
-            val addedCount = currentKeywords.size - originalSize
-            Toast.makeText(this, "Added $addedCount new keywords", Toast.LENGTH_LONG).show()
+        if (current.size > before) {
+            saveKeywords(current)
+            Toast.makeText(this, "Agregadas ${current.size - before} palabras", Toast.LENGTH_LONG).show()
         } else {
-            Toast.makeText(this, "No new keywords found in file", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No hay palabras nuevas en el archivo", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // --- Service Status ---
-
+    // ── Service status (unchanged) ───────────────────────────────────────────
     private fun updateServiceStatus() {
         if (isAccessibilityServiceEnabled()) {
-            statusTextView.text = "Enabled"
+            statusTextView.text = "Habilitado"
             statusTextView.setTextColor(getColor(android.R.color.holo_green_dark))
         } else {
-            statusTextView.text = "Disabled"
+            statusTextView.text = "Deshabilitado"
             statusTextView.setTextColor(getColor(android.R.color.holo_red_dark))
         }
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
         val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
-        return enabledServices.any { it.id.contains(packageName) }
+        return am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
+            .any { it.id.contains(packageName) }
     }
 
-    // --- RecyclerView Adapter ---
-
+    // ── Adapter (unchanged) ──────────────────────────────────────────────────
     class KeywordAdapter(private val onDeleteClicked: (String) -> Unit) :
         ListAdapter<String, KeywordAdapter.KeywordViewHolder>(KeywordDiffCallback()) {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): KeywordViewHolder {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.list_item_keyword, parent, false)
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.list_item_keyword, parent, false)
             return KeywordViewHolder(view)
         }
 
         override fun onBindViewHolder(holder: KeywordViewHolder, position: Int) {
-            val keyword = getItem(position)
-            holder.bind(keyword, onDeleteClicked)
+            holder.bind(getItem(position), onDeleteClicked)
         }
 
         class KeywordViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            private val keywordTextView: TextView = itemView.findViewById(R.id.keywordTextView)
-            private val deleteButton: ImageButton = itemView.findViewById(R.id.deleteButton)
+            private val keywordTextView: TextView  = itemView.findViewById(R.id.keywordTextView)
+            private val deleteButton: ImageButton  = itemView.findViewById(R.id.deleteButton)
 
             fun bind(keyword: String, onDeleteClicked: (String) -> Unit) {
                 keywordTextView.text = keyword
-                deleteButton.setOnClickListener {
-                    onDeleteClicked(keyword)
-                }
+                deleteButton.setOnClickListener { onDeleteClicked(keyword) }
             }
         }
 
         class KeywordDiffCallback : DiffUtil.ItemCallback<String>() {
-            override fun areItemsTheSame(oldItem: String, newItem: String): Boolean {
-                return oldItem == newItem
-            }
-
-            override fun areContentsTheSame(oldItem: String, newItem: String): Boolean {
-                return oldItem == newItem
-            }
+            override fun areItemsTheSame(oldItem: String, newItem: String) = oldItem == newItem
+            override fun areContentsTheSame(oldItem: String, newItem: String) = oldItem == newItem
         }
+    }
+
+    private val deviceAdminLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        isLaunchingSystemDialog = false
+        if (result.resultCode == Activity.RESULT_OK) {
+            Toast.makeText(this, "Proteccion anti-desinstalacion activada", Toast.LENGTH_SHORT).show()
+            // Now let them set the pattern
+            setupPatternLauncher.launch(Intent(this, SetupPatternActivity::class.java))
+        } else {
+            Toast.makeText(this, "Sin administrador de dispositivo el bloqueo es eludible", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun activateDeviceAdmin() {
+        isLaunchingSystemDialog = true
+        deviceAdminLauncher.launch(deviceAdminManager.buildActivationIntent())
+    }
+
+    private fun updateAdminStatus() {
+        val adminActive = deviceAdminManager.isAdminActive()
+        setupPatternButton.text = if (adminActive)
+            "Cambiar patron de desbloqueo"
+        else
+            "Activar proteccion (recomendado)"
     }
 }
