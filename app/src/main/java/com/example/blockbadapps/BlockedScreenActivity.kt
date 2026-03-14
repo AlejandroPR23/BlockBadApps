@@ -3,15 +3,12 @@ package com.example.blockbadapps
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.CountDownTimer
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 
 class BlockedScreenActivity : AppCompatActivity() {
-
-    private var countdownTimer: CountDownTimer? = null
 
     companion object {
         const val VIDEO_URL = "https://www.youtube.com/watch?v=zBxBT3k7Jb0"
@@ -20,7 +17,6 @@ class BlockedScreenActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Mostrarse encima de la pantalla de bloqueo y encender la pantalla
         @Suppress("DEPRECATION")
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
@@ -33,48 +29,28 @@ class BlockedScreenActivity : AppCompatActivity() {
         val streakManager = StreakManager(this)
         val days          = streakManager.getCurrentStreakDays()
 
-        // ── Mensaje motivacional aleatorio ───────────────────────────────────
+        // Mensaje motivacional aleatorio
         findViewById<TextView>(R.id.motivationalMessageTextView).text =
             BadgeSystem.randomMessage()
 
-        // ── Recordatorio de racha ────────────────────────────────────────────
+        // Recordatorio de racha
         findViewById<TextView>(R.id.streakReminderTextView).text = when (days) {
             0    -> "Hoy es tu día 1. Empieza bien."
             1    -> "Llevas 1 día. No lo pierdas."
-            else -> "Llevas $days días. No los pierdas."
+            else -> "Llevas $days días. No los pierdas. KEEP FOCUS 💀💀💀"
         }
 
-        // ── Cuenta regresiva → abre video automáticamente ───────────────────
-        val countdownTv    = findViewById<TextView>(R.id.countdownTextView)
-        val watchNowButton = findViewById<MaterialButton>(R.id.watchNowButton)
+        findViewById<TextView>(R.id.countdownTextView).text = ""
 
-        countdownTimer = object : CountDownTimer(5_000, 1_000) {
-            override fun onTick(millisLeft: Long) {
-                val secs = (millisLeft / 1000) + 1
-                countdownTv.text = "Video motivacional en ${secs}s..."
-            }
-            override fun onFinish() {
-                countdownTv.text = ""
-                openVideo()
-            }
-        }.start()
-
-        watchNowButton.setOnClickListener {
-            countdownTimer?.cancel()
+        findViewById<MaterialButton>(R.id.watchNowButton).setOnClickListener {
             openVideo()
         }
+
         findViewById<MaterialButton>(R.id.goHomeButton).setOnClickListener {
-            countdownTimer?.cancel()
             goHome()
         }
     }
 
-    override fun onDestroy() {
-        countdownTimer?.cancel()
-        super.onDestroy()
-    }
-
-    // El usuario no puede presionar atrás para volver al contenido bloqueado
     @Deprecated("Required override")
     override fun onBackPressed() { goHome() }
 
