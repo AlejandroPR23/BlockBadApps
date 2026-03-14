@@ -114,6 +114,16 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <Button
+        android:id="@+id/progressButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Ver mi progreso y medallas 🏆"
+        app:layout_constraintTop_toBottomOf="@id/setupPatternButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
     <!-- ── Blocklist ──────────────────────────────────────────────────── -->
     <TextView
         android:id="@+id/blockedSitesLabel"
@@ -122,7 +132,7 @@
         android:layout_marginTop="16dp"
         android:text="Blocked Keywords:"
         android:textStyle="bold"
-        app:layout_constraintTop_toBottomOf="@id/setupPatternButton"
+        app:layout_constraintTop_toBottomOf="@id/progressButton"
         app:layout_constraintStart_toStartOf="parent" />
 
     <androidx.recyclerview.widget.RecyclerView

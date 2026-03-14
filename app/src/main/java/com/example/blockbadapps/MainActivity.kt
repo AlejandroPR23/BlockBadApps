@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var keywordAdapter: KeywordAdapter
     private lateinit var patternManager: PatternManager
     private lateinit var deviceAdminManager: DeviceAdminManager
+    private lateinit var progressButton: Button
 
     private var hasVerifiedPattern = false
     private var isLaunchingSystemDialog = false
@@ -113,6 +114,7 @@ class MainActivity : AppCompatActivity() {
                 verifyPatternLauncher.launch(Intent(this, VerifyPatternActivity::class.java))
             }
         } else {
+            StreakManager(this).initStreakIfNeeded()
             updateServiceStatus()
             updateVpnStatus()          // NEW
             updateAdminStatus()
@@ -137,6 +139,7 @@ class MainActivity : AppCompatActivity() {
         addButton             = findViewById(R.id.addButton)
         importButton          = findViewById(R.id.importButton)
         setupPatternButton    = findViewById(R.id.setupPatternButton)
+        progressButton = findViewById(R.id.progressButton)
         keywordsRecyclerView  = findViewById(R.id.keywordsRecyclerView)
     }
 
@@ -161,6 +164,9 @@ class MainActivity : AppCompatActivity() {
                 // Admin no activo → activarlo primero
                 activateDeviceAdmin()                               // FASE 2
             }
+        }
+        progressButton.setOnClickListener {
+            startActivity(Intent(this, ProgressActivity::class.java))
         }
     }
 

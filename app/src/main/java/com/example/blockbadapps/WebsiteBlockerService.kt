@@ -105,12 +105,14 @@ class WebsiteBlockerService : AccessibilityService() {
     }
 
     private fun handleIncognito() {
-        val mainHandler = Handler(Looper.getMainLooper())
-        mainHandler.post {
-            Toast.makeText(applicationContext, "Modo incognito bloqueado", Toast.LENGTH_SHORT).show()
+        StreakManager(applicationContext).logBlockedAttempt()
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(applicationContext, "Modo incógnito bloqueado", Toast.LENGTH_SHORT).show()
+            val intent = Intent(applicationContext, BlockedScreenActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
         }
-        // Close the current window — sends the user to the home screen
-        performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
     // ─── URL bar finder (unchanged) ──────────────────────────────────────────
@@ -133,10 +135,16 @@ class WebsiteBlockerService : AccessibilityService() {
 
     // ─── Block actions (unchanged) ───────────────────────────────────────────
     private fun handleBlockActions(packageName: CharSequence?) {
-        val h = Handler(Looper.getMainLooper())
-        h.post { showBlockToast() }
-        h.postDelayed({ openMotivationalPage(packageName) }, 500)
-        h.postDelayed({ openMotivationalVideo() }, 60_000)
+        // Registrar intento bloqueado
+        StreakManager(applicationContext).logBlockedAttempt()
+
+        // Lanzar pantalla motivacional en lugar del Toast + URL
+        Handler(Looper.getMainLooper()).post {
+            val intent = Intent(applicationContext, BlockedScreenActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+        }
     }
 
     private fun openMotivationalPage(packageName: CharSequence?) {
